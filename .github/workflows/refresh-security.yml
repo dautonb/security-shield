@@ -1,0 +1,44 @@
+name: Refresh Security Feed
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# Never run two refreshes at once; the API also enforces this with a Redis lock.
+concurrency:
+  group: refresh-security
+  cancel-in-progress: false
+
+# This job never touches the repository.
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger audit cycle
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Defaults to production; set the repository variable SERVICE_URL to point elsewhere.
+          SERVICE_URL: ${{ vars.SERVICE_URL || 'https://rdxdata.xyz' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET secret is not set"
+            exit 1
+          fi
+          status=$(curl --silent --show-error \
+            --output "${RUNNER_TEMP}/response.json" --write-out "%{http_code}" \
+            --max-time 120 --retry 2 --retry-delay 10 --retry-all-errors \
+            -X POST "${SERVICE_URL%/}/v1/internal/cycle" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json")
+          echo "HTTP ${status}"
+          # This repository is public, so its logs are public: only print the body on success.
+          case "${status}" in
+            200) cat "${RUNNER_TEMP}/response.json"; echo ;;
+            409) echo "A cycle is already running; nothing to do." ;;
+            *)   echo "::error::Audit cycle failed with HTTP ${status} (response body hidden because logs are public)"; exit 1 ;;
+          esac
