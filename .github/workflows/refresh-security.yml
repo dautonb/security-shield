@@ -22,7 +22,7 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           # Defaults to production; set the repository variable SERVICE_URL to point elsewhere.
-          SERVICE_URL: ${{ vars.SERVICE_URL || 'https://rdxdata.xyz' }}
+          SERVICE_URL: ${{ vars.SERVICE_URL || 'https://securityshield.rdxdata.xyz' }}
         run: |
           set -euo pipefail
           if [ -z "${CRON_SECRET}" ]; then
